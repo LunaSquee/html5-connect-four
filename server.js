@@ -236,7 +236,6 @@ function detectWin (color, game) {
       for (let i = 0; i < 4; i++) {
         let pAt = getPiece(game, parseInt(c) + i, piece.y)
         if (pAt && pAt.color === color) {
-          console.log(pAt)
           matches += 1
         } else {
           matches = 0
@@ -423,7 +422,9 @@ io.on('connection', (socket) => {
     clients[opponent].socket.emit('place', {column: data.column, color: playerInGame})
 
     game.places[data.column].push({color: playerInGame, y: 8 - game.places[data.column].length})
-    console.log(game.places[data.column])
+
+    clients[me].socket.emit('turn', false)
+    clients[opponent].socket.emit('turn', true)
 
     if (detectWin(playerInGame, game)) {
       endGame(data.gameId, me, opponent, 1)
@@ -434,9 +435,6 @@ io.on('connection', (socket) => {
       endGame(data.gameId, me, opponent, 2)
       return
     }
-
-    clients[me].socket.emit('turn', false)
-    clients[opponent].socket.emit('turn', true)
   })
 
   socket.on('disconnect', () => {
