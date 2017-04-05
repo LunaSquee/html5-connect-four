@@ -89,7 +89,6 @@
     startGame: () => {
       Connect4.Game.places = [[],[],[],[],[],[],[],[],[]]
       Connect4.ctx.clearRect(0, 0, Connect4.canvasW, Connect4.canvasH)
-      Connect4.Game.myTurn = true
 
       let p = GameDrawer.padding
 
