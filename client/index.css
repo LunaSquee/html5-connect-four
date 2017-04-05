@@ -225,4 +225,5 @@ dialog.unsupported {
     padding: 1em;
     background: white;
     display: none;
+    z-index: 10;
 }
