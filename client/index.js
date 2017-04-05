@@ -42,6 +42,11 @@
     return html
   }
 
+  function modalAlert (msg) {
+    Connect4.DOM.modalMsg.innerHTML = msg
+    Connect4.DOM.alertModal.showModal()
+  }
+
   function pointerOnCanvas (e) {
     let x
     let y
@@ -278,7 +283,7 @@
   function joinGame (game) {
     Connect4.played += 1
 
-    alert('Game has started!')
+    modalAlert('Game has started!')
     //io.emit('leave_game', {gameId: Connect4.Game.gameId})
     Connect4.Game.gameId = game.gameId
     Connect4.Game.opponentID = game.opponentId
@@ -355,23 +360,23 @@
   function gameEnds (reason, winner) {
     if (reason === 1) {
       if (winner === true) {
-        alert('You won!')
+        modalAlert('You won!')
         logStatus('You won!')
       } else {
-        alert('You lost.')
+        modalAlert('You lost.')
         logStatus('You lost.')
       }
     }
 
     if (reason === 0 && winner === true) {
-      alert('Your opponent left the game.')
+      modalAlert('Your opponent left the game.')
       Connect4.DOM.gameScreen.style.display = 'none'
       Connect4.DOM.selectionScreen.style.display = 'block'
       Connect4.renderTick = false
     }
 
     if (reason === 2) {
-      alert('You tied!')
+      modalAlert('You tied!')
       logStatus('It\'s a tie!.')
     }
 
@@ -420,6 +425,18 @@
     Connect4.DOM.chatbox.scrollTop = Connect4.DOM.chatbox.scrollHeight
   }
 
+  function unsupportedModalFix (elem) {
+    if (!elem.showModal) {
+      elem.className = 'unsupported'
+      elem.showModal = () => {
+        elem.style.display = 'block'
+      }
+      elem.close = () => {
+        elem.style.display = 'none'
+      }
+    }
+  }
+
   window.onload = () => {
     const startScreen = Connect4.DOM.startScreen = $.querySelector('#start')
     const selectionScreen = Connect4.DOM.selectionScreen = $.querySelector('#selection')
@@ -455,6 +472,11 @@
     const chatbox = Connect4.DOM.chatbox = gameScreen.querySelector('#messages')
     const chatfield = Connect4.DOM.chatfield = gameScreen.querySelector('#message_send')
 
+    const alertModal = Connect4.DOM.alertModal = $.querySelector('#alertModal')
+    const alertClose = alertModal.querySelector('#close')
+    Connect4.DOM.modalMsg = alertModal.querySelector('#am_text')
+    unsupportedModalFix(alertModal)
+
     GameDrawer.initialize()
 
     let uname = getStored('name')
@@ -467,6 +489,10 @@
         attemptJoin(playerName.value)
       }
     }, false)
+
+    alertClose.addEventListener('click', () => {
+      alertModal.close()
+    })
 
     chatfield.addEventListener('keydown', (e) => {
       if (e.keyCode === 13 && Connect4.Game.gameId) {
@@ -545,7 +571,7 @@
     })
 
     io.on('game_error', (data) => {
-      alert(data.message)
+      modalAlert(data.message)
       gameEnds(0, null)
       io.emit('poll_games')
     })
