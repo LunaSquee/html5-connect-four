@@ -131,8 +131,8 @@
       if (Connect4.Game.myTurn && GameDrawer.mouseOn) {
         let column = GameDrawer.gridX - 1
         if (GameDrawer.possible(column)) {
-          io.emit('place_at', {column: column, gameId: Connect4.Game.gameId})
           Connect4.Game.myTurn = false
+          io.emit('place_at', {column: column, gameId: Connect4.Game.gameId})
         }
       }
     },
