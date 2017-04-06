@@ -186,6 +186,7 @@ function waitingGamesList (uid) {
   }
 
   return {
+    online: Object.keys(clients).length,
     sessions: gamesInSession,
     totalGames: totalGames,
     list: result
@@ -208,18 +209,19 @@ function determinePlayerById (gameId, uid) {
 
 function getPiece (game, col, index) {
   if (col > 8 || index > 8) return
-  col = game.places[col]
+  let colmn = game.places[col]
   
-  if (!col) return
+  if (!colmn) return
 
-  if (!col.length) {
+  if (!colmn.length) {
     return
   }
 
   let match = null
-  for (let i in col) {
-    if (col[i].y === index) {
-      match = col[i]
+  for (let i in colmn) {
+    if (colmn[i].y === index) {
+      match = colmn[i]
+      match.col = col
       break
     }
   }
@@ -228,69 +230,77 @@ function getPiece (game, col, index) {
 
 function detectWin (color, game) {
   let win = false
+  let matches = []
+
   for (let c in game.places) {
     let col = game.places[c]
+    if (win) break
     for (let p in col) {
       let piece = col[p]
-      let matches = 0
+      matches = []
       for (let i = 0; i < 4; i++) {
         let pAt = getPiece(game, parseInt(c) + i, piece.y)
         if (pAt && pAt.color === color) {
-          matches += 1
+          matches.push(pAt)
         } else {
-          matches = 0
+          matches = []
         }
       }
-      if (matches >= 4) {
+      if (matches.length >= 4) {
         win = true
         console.log('horizontal win')
         break
       }
-      matches = 0
+      matches = []
       for (let i = 0; i < 4; i++) {
         let pAt = getPiece(game, parseInt(c), piece.y + i)
         if (pAt && pAt.color === color) {
-          matches += 1
+          matches.push(pAt)
         } else {
-          matches = 0
+          matches = []
         }
       }
-      if (matches >= 4) {
+      if (matches.length >= 4) {
         console.log('vertical win')
         win = true
         break
       }
-      matches = 0
+      matches = []
       for (let i = 0; i < 4; i++) {
         let pAt = getPiece(game, parseInt(c) + i, piece.y - i)
         if (pAt && pAt.color === color) {
-          matches += 1
+          matches.push(pAt)
         } else {
-          matches = 0
+          matches = []
         }
       }
-      if (matches >= 4) {
+      if (matches.length >= 4) {
         console.log('diagonal right win')
         win = true
         break
       }
-      matches = 0
+      matches = []
       for (let i = 0; i < 4; i++) {
         let pAt = getPiece(game, parseInt(c) - i, piece.y - i)
         if (pAt && pAt.color === color) {
-          matches += 1
+          matches.push(pAt)
         } else {
-          matches = 0
+          matches = []
         }
       }
-      if (matches >= 4) {
+      if (matches.length >= 4) {
         console.log('diagonal left win')
         win = true
         break
       }
     }
   }
-  return win
+
+  if (win) {
+    return matches
+  }
+
+  return null
 }
 
 function detectTie (game) {
@@ -376,6 +386,8 @@ io.on('connection', (socket) => {
       return
     }
 
+    if (!data.gameId) return
+
     let game = games[data.gameId]
     let playerInGame = determinePlayerById(data.gameId, client)
 
@@ -400,6 +412,8 @@ io.on('connection', (socket) => {
       return
     }
 
+    if (!data.gameId) return
+
     let game = games[data.gameId]
     let playerInGame = determinePlayerById(data.gameId, client)
 
@@ -413,8 +427,13 @@ io.on('connection', (socket) => {
       return
     }
 
-    let opponent = determineOpponent(playerInGame)
-    opponent = game[opponent]
+    if (game.turn !== playerInGame) {
+      socket.emit('game_error', {message: 'It\'s not your turn!'})
+      return
+    }
+
+    let opponentColor = determineOpponent(playerInGame)
+    let opponent = game[opponentColor]
 
     let me = game[playerInGame]
 
@@ -423,10 +442,14 @@ io.on('connection', (socket) => {
 
     game.places[data.column].push({color: playerInGame, y: 8 - game.places[data.column].length})
 
+    game.turn = opponentColor
     clients[me].socket.emit('turn', false)
     clients[opponent].socket.emit('turn', true)
 
-    if (detectWin(playerInGame, game)) {
+    let win = detectWin(playerInGame, game)
+    if (win) {
+      clients[me].socket.emit('win_tiles', win)
+      clients[opponent].socket.emit('win_tiles', win)
       endGame(data.gameId, me, opponent, 1)
       return
     }

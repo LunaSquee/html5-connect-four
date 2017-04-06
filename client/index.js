@@ -15,11 +15,44 @@
       myColor: '',
       opponentID: '',
       opponentName: '',
-      places: [[],[],[],[],[],[],[],[],[]]
+      places: [[],[],[],[],[],[],[],[],[]],
+      victory: null
     },
     color: {
       blue: '#102aed',
       red: '#ed1010'
+    }
+  }
+
+  let activityNotice = {
+    timeout: null,
+    doctitle: '',
+    focused: true,
+
+    off: (temp) => {
+      document.title = activityNotice.doctitle
+
+      clearTimeout(activityNotice.timeout)
+      activityNotice.timeout = null
+      
+      if (temp) {
+        activityNotice.timeout = setTimeout(() => {
+          activityNotice.on(temp)
+        }, 1000)
+      }
+    },
+    on: (msg) => {
+      if (activityNotice.timeout) {
+        activityNotice.off(null)
+      }
+
+      if (activityNotice.focused) return
+      
+      document.title = msg
+      
+      activityNotice.timeout = setTimeout(() => {
+        activityNotice.off(msg)
+      }, 1000)
     }
   }
 
@@ -45,6 +78,7 @@
   function modalAlert (msg) {
     Connect4.DOM.modalMsg.innerHTML = msg
     Connect4.DOM.alertModal.showModal()
+    activityNotice.on(msg)
   }
 
   function pointerOnCanvas (e) {
@@ -73,6 +107,13 @@
     return {x: x, y: y}
   }
 
+  function normalize (x, y) {
+    return {
+      x: (x * GameDrawer.gridSize) + GameDrawer.padding,
+      y: (y * GameDrawer.gridSize) + GameDrawer.padding
+    }
+  }
+
   let GameDrawer = {
     drawMyBoard: true,
     boardStaticState: null,
@@ -92,6 +133,7 @@
     bh: 576,
 
     startGame: () => {
+      Connect4.Game.victory = null
       Connect4.Game.places = [[],[],[],[],[],[],[],[],[]]
       Connect4.ctx.clearRect(0, 0, Connect4.canvasW, Connect4.canvasH)
 
@@ -109,7 +151,7 @@
       }
       Connect4.ctx.closePath()
 
-      Connect4.ctx.lineWidth = 1
+      Connect4.ctx.lineWidth = 2
       Connect4.ctx.strokeStyle = "black"
       Connect4.ctx.stroke()
 
@@ -141,7 +183,29 @@
       }
     },
 
-    updater: () => {
+    topLayer: () => {
+      if (Connect4.Game.victory && Connect4.Game.victory.length) {
+        let zero = Connect4.Game.victory[0]
+        let normal = normalize(zero.col, zero.y)
+
+        Connect4.ctx.beginPath()
+        Connect4.ctx.moveTo(normal.x + (GameDrawer.gridSize/2), normal.y + (GameDrawer.gridSize/2))
+
+        for (let i = 1; i < Connect4.Game.victory.length; i++) {
+          let t = Connect4.Game.victory[i]
+          let ncrd = normalize(t.col, t.y)
+
+          Connect4.ctx.lineTo(ncrd.x + (GameDrawer.gridSize/2), ncrd.y + (GameDrawer.gridSize/2))
+        }
+
+        Connect4.ctx.lineCap = 'round'
+        Connect4.ctx.lineWidth = 24
+        Connect4.ctx.strokeStyle = '#33CC33'
+        Connect4.ctx.stroke()
+      }
+    },
+
+    bottomLayer: () => {
       for (let i in Connect4.Game.places) {
         let col = Connect4.Game.places[i]
         for (let p in col) {
@@ -151,11 +215,14 @@
           } else {
             piece.dy = piece.y
           }
+
+          let ncrd = normalize(parseInt(i), piece.dy)
+
           Connect4.ctx.fillStyle = Connect4.color[piece.color]
-          Connect4.ctx.fillRect((parseInt(i) * GameDrawer.gridSize) + GameDrawer.padding, 
-            (piece.dy * GameDrawer.gridSize) + GameDrawer.padding, GameDrawer.gridSize, GameDrawer.gridSize)
+          Connect4.ctx.fillRect(ncrd.x, ncrd.y, GameDrawer.gridSize, GameDrawer.gridSize)
         }
       }
+
       if (!Connect4.renderTick || !Connect4.Game.gameId) return
       if (Connect4.Game.myTurn) {
         if (GameDrawer.mouseOn) {
@@ -178,9 +245,12 @@
       Connect4.ctx.clearRect(0, 0, Connect4.canvasW, Connect4.canvasH)
       if (!Connect4.renderTick) return
 
-      GameDrawer.updater()
+      GameDrawer.bottomLayer()
 
       Connect4.ctx.drawImage(GameDrawer.boardStaticState, 0, 0)
+
+      GameDrawer.topLayer()
+
       requestAnimFrame(GameDrawer.gameLoop)
     },
 
@@ -283,7 +353,7 @@
   function joinGame (game) {
     Connect4.played += 1
 
-    modalAlert('Game has started!')
+    activityNotice.on('Game has started!')
     //io.emit('leave_game', {gameId: Connect4.Game.gameId})
     Connect4.Game.gameId = game.gameId
     Connect4.Game.opponentID = game.opponentId
@@ -360,11 +430,11 @@
   function gameEnds (reason, winner) {
     if (reason === 1) {
       if (winner === true) {
-        modalAlert('You won!')
         logStatus('You won!')
+        activityNotice.on('You won the game!')
       } else {
-        modalAlert('You lost.')
         logStatus('You lost.')
+        activityNotice.on('You lost the game.')
       }
     }
 
@@ -376,17 +446,15 @@
     }
 
     if (reason === 2) {
-      modalAlert('You tied!')
       logStatus('It\'s a tie!.')
+      activityNotice.on('The game ended in a tie!')
     }
 
     Connect4.locked = false
     Connect4.Game.gameId = null
     Connect4.Game.myTurn = false
-    io.emit('poll_games')
 
-    //Connect4.DOM.gameScreen.style.display = 'none'
-    //Connect4.DOM.selectionScreen.style.display = 'block'
+    io.emit('poll_games')
 
     Connect4.DOM.waitlistBtns.style.display = 'block'
     Connect4.DOM.waitlistQuit.style.display = 'none'
@@ -398,7 +466,6 @@
     Connect4.DOM.gameScreen.style.display = 'none'
     Connect4.DOM.selectionScreen.style.display = 'none'
     Connect4.DOM.startScreen.style.display = 'block'
-    Connect4.DOM.resultScreen.style.display = 'none'
 
     Connect4.locked = false
     Connect4.playerName = ''
@@ -415,10 +482,28 @@
   }
 
   function addChatMessage (type, senderName, message) {
+    if (type === 'chat') {
+      activityNotice.on('Chat message!')
+
+      if (Connect4.Game.gameId) {
+        let color = 'red'
+        if (senderName === Connect4.playerName) {
+          color = Connect4.Game.myColor
+        } else {
+          if (Connect4.Game.myColor === 'red') {
+            color = 'blue'
+          }
+        }
+        type += ' ' + color
+      }
+    }
+
     let msgElem = '<div class="message t_' + type + '">'
+
     if (senderName) {
       msgElem += '<span class="sender">' + senderName + '</span>&nbsp;'
     }
+
     msgElem += '<span class="line">' + escapeHtml(message) + '</span>'
 
     Connect4.DOM.chatbox.innerHTML += msgElem
@@ -435,6 +520,15 @@
         elem.style.display = 'none'
       }
     }
+  }
+
+  window.onfocus = () => {
+    activityNotice.focused = true
+    activityNotice.off(null)
+  }
+
+  window.onblur = () => {
+    activityNotice.focused = false
   }
 
   window.onload = () => {
@@ -454,6 +548,7 @@
     const waitlistQuit = Connect4.DOM.waitlistQuit = selectionScreen.querySelector('#waitlist_quit')
     const waitlistBtns = Connect4.DOM.waitlistBtns = selectionScreen.querySelector('.idbuttons')
 
+    const stat_online = selectionScreen.querySelector('#stats_players_online')
     const stat_ingame = selectionScreen.querySelector('#stats_players')
     const stat_total = selectionScreen.querySelector('#stats_games')
     const stat_client = selectionScreen.querySelector('#stats_clientgames')
@@ -498,10 +593,14 @@
       if (e.keyCode === 13 && Connect4.Game.gameId) {
         if (chatfield.value != '') {
           io.emit('chat_send', {message: chatfield.value, gameId: Connect4.Game.gameId})
-          addChatMessage('chat me', Connect4.playerName, chatfield.value)
+          addChatMessage('chat', Connect4.playerName, chatfield.value)
           chatfield.value = ''
         }
       }
+    })
+
+    chatbox.addEventListener('click', (e) => {
+      chatfield.focus()
     })
 
     startButton.addEventListener('click', (e) => {
@@ -528,6 +627,7 @@
       if (Connect4.Game.gameId) {
         io.emit('leave_game', {gameId: Connect4.Game.gameId})
       }
+      io.emit('poll_games')
       Connect4.DOM.gameScreen.style.display = 'none'
       Connect4.DOM.selectionScreen.style.display = 'block'
       Connect4.renderTick = false
@@ -559,9 +659,10 @@
       if (val === true) {
         Connect4.Game.myTurn = true
         logStatus('Your turn.')
+        activityNotice.on('It\'s your turn!')
       } else {
         Connect4.Game.myTurn = false
-        logStatus('Your opponent\'s turn.')
+        logStatus(Connect4.Game.opponentName + '\'s turn.')
       }
     })
 
@@ -578,6 +679,11 @@
 
     io.on('force_relog', () => {
       forceRelogin()
+    })
+
+    io.on('win_tiles', (data) => {
+      console.log(data)
+      Connect4.Game.victory = data
     })
 
     io.on('game_end', (data) => {
@@ -612,6 +718,10 @@
         stat_total.innerHTML = data.totalGames
       }
 
+      if (data.online != null) {
+        stat_online.innerHTML = data.online
+      }
+
       stat_client.innerHTML = Connect4.played
 
       if (!list.length) {
@@ -643,5 +753,7 @@
       forceRelogin()
       logWarning('Server disconnected')
     })
+
+    activityNotice.doctitle = document.title
   }
 })(document)

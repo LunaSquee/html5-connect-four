@@ -145,6 +145,7 @@ button#leave {
     padding-top: 5px;
     width: 200px;
     height: 50px;
+    font-size: 120%;
 }
 #game_canvas {
     margin-left: 300px;
@@ -173,7 +174,7 @@ button#lobby {
 .message .sender {
     color: red;
 }
-.message.me .sender {
+.message.blue .sender {
     color: blue !important;
 }
 .chatbox {
